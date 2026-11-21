@@ -45,6 +45,31 @@ describe('POST /api/products/bulk', () => {
     expect(res.body.skipped).toBe(0);
   });
 
+  it('rejects duplicate CSV headers before any database write', async () => {
+    const csv = 'name,price,price,quantity\nTomatoes,1.0,2.0,10\n';
+    const res = await csvUpload(csv);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('duplicate_columns');
+    expect(res.body.message).toContain('price');
+    expect(mockDb.prepare).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown CSV headers before any database write', async () => {
+    const csv = 'name,price,quantity,unexpected\nTomatoes,2.5,10,extra\n';
+    const res = await csvUpload(csv);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('unknown_columns');
+    expect(res.body.message).toContain('unexpected');
+    expect(mockDb.prepare).not.toHaveBeenCalled();
+  });
+
+  it('accepts every column in the CSV template', async () => {
+    const csv = 'name,description,price,quantity,unit,category\nTomatoes,Fresh,2.5,10,kg,vegetables\n';
+    const res = await csvUpload(csv);
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(1);
+  });
+
   it('returns 400 with missing_columns when price column is absent', async () => {
     const csv = 'name,quantity\nTomatoes,100\n';
     const res = await csvUpload(csv);
