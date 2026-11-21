@@ -30,6 +30,7 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
 
   try {
     const REQUIRED_HEADERS = ['name', 'price', 'quantity'];
+    const ALLOWED_HEADERS = [...REQUIRED_HEADERS, 'description', 'unit', 'category'];
     let detectedHeaders = null;
 
     const records = await new Promise((resolve, reject) => {
@@ -46,6 +47,16 @@ router.post('/', auth, upload.single('file'), async (req, res) => {
 
     if (!detectedHeaders) {
       return err(res, 400, 'CSV file is empty or has no header row', 'validation_error');
+    }
+
+    const duplicateHeaders = detectedHeaders.filter((h, index) => detectedHeaders.indexOf(h) !== index);
+    if (duplicateHeaders.length > 0) {
+      return err(res, 400, `Duplicate CSV columns: ${[...new Set(duplicateHeaders)].join(', ')}`, 'duplicate_columns');
+    }
+
+    const unknownHeaders = detectedHeaders.filter((h) => !ALLOWED_HEADERS.includes(h));
+    if (unknownHeaders.length > 0) {
+      return err(res, 400, `Unknown CSV columns: ${unknownHeaders.join(', ')}`, 'unknown_columns');
     }
 
     const missingHeaders = REQUIRED_HEADERS.filter((h) => !detectedHeaders.includes(h));
